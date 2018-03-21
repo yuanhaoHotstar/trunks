@@ -372,8 +372,8 @@ The columns are: unix timestamp in ns since epoch, http status code,
 request latency in ns, bytes out, bytes in, and lastly the error.
 
 ## Usage: Distributed attacks
-Whenever your load test can't be conducted due to Vegeta hitting machine limits
-such as open files, memory, CPU or network bandwidth, it's a good idea to use Vegeta in a distributed manner.
+Whenever your load test can't be conducted due to Vegeta/Trunks hitting machine limits
+such as open files, memory, CPU or network bandwidth, it's a good idea to use Vegeta/Trunks in a distributed manner.
 
 In a hypothetical scenario where the desired attack rate is 60k requests per second,
 let's assume we have 3 machines with `trunks` installed.
