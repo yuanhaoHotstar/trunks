@@ -1,4 +1,4 @@
-package vegeta
+package trunks
 
 import (
 	"reflect"
@@ -65,7 +65,8 @@ func TestMetrics_Add(t *testing.T) {
 	}
 }
 
-// https://github.com/tsenart/vegeta/issues/208
+// https://github.com/tsenart/trunks
+/issues/208
 func TestMetrics_NoInfiniteRate(t *testing.T) {
 	t.Parallel()
 

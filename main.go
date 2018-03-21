@@ -17,13 +17,13 @@ func main() {
 		"dump":   dumpCmd(),
 	}
 
-	fs := flag.NewFlagSet("vegeta", flag.ExitOnError)
+	fs := flag.NewFlagSet("trunks", flag.ExitOnError)
 	cpus := fs.Int("cpus", runtime.NumCPU(), "Number of CPUs to use")
 	profile := fs.String("profile", "", "Enable profiling of [cpu, heap]")
 	version := fs.Bool("version", false, "Print version and exit")
 
 	fs.Usage = func() {
-		fmt.Println("Usage: vegeta [global flags] <command> [command flags]")
+		fmt.Println("Usage: trunks [global flags] <command> [command flags]")
 		fmt.Printf("\nglobal flags:\n")
 		fs.PrintDefaults()
 		for name, cmd := range commands {
@@ -80,11 +80,11 @@ var Version = "???"
 
 const examples = `
 examples:
-  echo "GET http://localhost/" | vegeta attack -duration=5s | tee results.bin | vegeta report
-  vegeta attack -targets=targets.txt > results.bin
-  vegeta report -inputs=results.bin -reporter=json > metrics.json
-  cat results.bin | vegeta report -reporter=plot > plot.html
-  cat results.bin | vegeta report -reporter="hist[0,100ms,200ms,300ms]"
+  echo "GET http://localhost/" | trunks attack -duration=5s | tee results.bin | trunks report
+  trunks attack -targets=targets.txt > results.bin
+  trunks report -inputs=results.bin -reporter=json > metrics.json
+  cat results.bin | trunks report -reporter=plot > plot.html
+  cat results.bin | trunks report -reporter="hist[0,100ms,200ms,300ms]"
 `
 
 type command struct {

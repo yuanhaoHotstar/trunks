@@ -6,11 +6,11 @@ import (
 	"io"
 	"strings"
 
-	vegeta "github.com/tsenart/vegeta/lib"
+	trunks "github.com/straightdave/trunks/lib"
 )
 
 func dumpCmd() command {
-	fs := flag.NewFlagSet("vegeta dump", flag.ExitOnError)
+	fs := flag.NewFlagSet("trunks dump", flag.ExitOnError)
 	dumper := fs.String("dumper", "json", "Dumper [json, csv]")
 	inputs := fs.String("inputs", "stdin", "Input files (comma separated)")
 	output := fs.String("output", "stdout", "Output file")
@@ -31,7 +31,7 @@ func dump(dumper, inputs, output string) error {
 		defer in.Close()
 		srcs[i] = in
 	}
-	dec := vegeta.NewDecoder(srcs...)
+	dec := trunks.NewDecoder(srcs...)
 
 	out, err := file(output, true)
 	if err != nil {
@@ -39,18 +39,18 @@ func dump(dumper, inputs, output string) error {
 	}
 	defer out.Close()
 
-	var enc vegeta.Encoder
+	var enc trunks.Encoder
 	switch dumper {
 	case "csv":
-		enc = vegeta.NewCSVEncoder(out)
+		enc = trunks.NewCSVEncoder(out)
 	case "json":
-		enc = vegeta.NewJSONEncoder(out)
+		enc = trunks.NewJSONEncoder(out)
 	default:
 		return fmt.Errorf("unsupported dumper: %s", dumper)
 	}
 
 	for {
-		var r vegeta.Result
+		var r trunks.Result
 		if err = dec.Decode(&r); err != nil {
 			if err == io.EOF {
 				break

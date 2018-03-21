@@ -13,14 +13,14 @@ import (
 	"os/signal"
 	"time"
 
-	vegeta "github.com/tsenart/vegeta/lib"
+	trunks "github.com/straightdave/trunks/lib"
 )
 
 func attackCmd() command {
-	fs := flag.NewFlagSet("vegeta attack", flag.ExitOnError)
+	fs := flag.NewFlagSet("trunks attack", flag.ExitOnError)
 	opts := &attackOpts{
 		headers: headers{http.Header{}},
-		laddr:   localAddr{&vegeta.DefaultLocalAddr},
+		laddr:   localAddr{&trunks.DefaultLocalAddr},
 	}
 
 	fs.StringVar(&opts.targetsf, "targets", "stdin", "Targets file")
@@ -33,11 +33,11 @@ func attackCmd() command {
 	fs.BoolVar(&opts.insecure, "insecure", false, "Ignore invalid server TLS certificates")
 	fs.BoolVar(&opts.lazy, "lazy", false, "Read targets lazily")
 	fs.DurationVar(&opts.duration, "duration", 0, "Duration of the test [0 = forever]")
-	fs.DurationVar(&opts.timeout, "timeout", vegeta.DefaultTimeout, "Requests timeout")
+	fs.DurationVar(&opts.timeout, "timeout", trunks.DefaultTimeout, "Requests timeout")
 	fs.Uint64Var(&opts.rate, "rate", 50, "Requests per second")
-	fs.Uint64Var(&opts.workers, "workers", vegeta.DefaultWorkers, "Initial number of workers")
-	fs.IntVar(&opts.connections, "connections", vegeta.DefaultConnections, "Max open idle connections per target host")
-	fs.IntVar(&opts.redirects, "redirects", vegeta.DefaultRedirects, "Number of redirects to follow. -1 will not follow but marks as success")
+	fs.Uint64Var(&opts.workers, "workers", trunks.DefaultWorkers, "Initial number of workers")
+	fs.IntVar(&opts.connections, "connections", trunks.DefaultConnections, "Max open idle connections per target host")
+	fs.IntVar(&opts.redirects, "redirects", trunks.DefaultRedirects, "Number of redirects to follow. -1 will not follow but marks as success")
 	fs.Var(&opts.headers, "header", "Request header")
 	fs.Var(&opts.laddr, "laddr", "Local IP address")
 	fs.BoolVar(&opts.keepalive, "keepalive", true, "Use persistent connections")
@@ -103,13 +103,13 @@ func attack(opts *attackOpts) (err error) {
 	}
 
 	var (
-		tr  vegeta.Targeter
+		tr  trunks.Targeter
 		src = files[opts.targetsf]
 		hdr = opts.headers.Header
 	)
 	if opts.lazy {
-		tr = vegeta.NewLazyTargeter(src, body, hdr)
-	} else if tr, err = vegeta.NewEagerTargeter(src, body, hdr); err != nil {
+		tr = trunks.NewLazyTargeter(src, body, hdr)
+	} else if tr, err = trunks.NewEagerTargeter(src, body, hdr); err != nil {
 		return err
 	}
 
@@ -124,19 +124,19 @@ func attack(opts *attackOpts) (err error) {
 		return err
 	}
 
-	atk := vegeta.NewAttacker(
-		vegeta.Redirects(opts.redirects),
-		vegeta.Timeout(opts.timeout),
-		vegeta.LocalAddr(*opts.laddr.IPAddr),
-		vegeta.TLSConfig(tlsc),
-		vegeta.Workers(opts.workers),
-		vegeta.KeepAlive(opts.keepalive),
-		vegeta.Connections(opts.connections),
-		vegeta.HTTP2(opts.http2),
+	atk := trunks.NewAttacker(
+		trunks.Redirects(opts.redirects),
+		trunks.Timeout(opts.timeout),
+		trunks.LocalAddr(*opts.laddr.IPAddr),
+		trunks.TLSConfig(tlsc),
+		trunks.Workers(opts.workers),
+		trunks.KeepAlive(opts.keepalive),
+		trunks.Connections(opts.connections),
+		trunks.HTTP2(opts.http2),
 	)
 
 	res := atk.Attack(tr, opts.rate, opts.duration)
-	enc := vegeta.NewEncoder(out)
+	enc := trunks.NewEncoder(out)
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt)
 

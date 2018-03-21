@@ -21,7 +21,7 @@ _testmain.go
 
 *.exe
 
-vegeta
-vegeta.test
-vegeta-*.tar.gz
+trunks
+trunks.test
+trunks-*.tar.gz
 lib/lib.test

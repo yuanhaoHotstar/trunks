@@ -1,4 +1,4 @@
-package vegeta
+package trunks
 
 import (
 	"bufio"
@@ -158,7 +158,7 @@ func NewLazyTargeter(src io.Reader, body []byte, hdr http.Header) Targeter {
 				}
 			}
 			// Add key/value directly to the http.Header (map[string][]string).
-			// http.Header.Add() canonicalizes keys but vegeta is used
+			// http.Header.Add() canonicalizes keys but trunks is used
 			// to test systems that require case-sensitive headers.
 			tgt.Header[tokens[0]] = append(tgt.Header[tokens[0]], tokens[1])
 		}

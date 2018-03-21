@@ -73,11 +73,11 @@ dump command:
       Output file (default "stdout")
 
 examples:
-  echo "GET http://localhost/" | vegeta attack -duration=5s | tee results.bin | vegeta report
-  vegeta attack -targets=targets.txt > results.bin
-  vegeta report -inputs=results.bin -reporter=json > metrics.json
-  cat results.bin | vegeta report -reporter=plot > plot.html
-  cat results.bin | vegeta report -reporter="hist[0,100ms,200ms,300ms]"
+  echo "GET http://localhost/" | trunks attack -duration=5s | tee results.bin | trunks report
+  trunks attack -targets=targets.txt > results.bin
+  trunks report -inputs=results.bin -reporter=json > metrics.json
+  cat results.bin | trunks report -reporter=plot > plot.html
+  cat results.bin | trunks report -reporter="hist[0,100ms,200ms,300ms]"
 ```
 
 #### `-cpus`
@@ -93,8 +93,8 @@ Prints the version and exits.
 
 ### `attack`
 ```console
-$ vegeta attack -h
-Usage of vegeta attack:
+$ trunks attack -h
+Usage of trunks attack:
   -body string
       Requests body file
   -cert string
@@ -242,8 +242,8 @@ requested rate.
 
 ### report
 ```console
-$ vegeta report -h
-Usage of vegeta report:
+$ trunks report -h
+Usage of trunks report:
   -inputs string
       Input files (comma separated) (default "stdin")
   -output string
@@ -254,7 +254,7 @@ Usage of vegeta report:
 
 #### `-inputs`
 Specifies the input files to generate the report of, defaulting to stdin.
-These are the output of vegeta attack. You can specify more than one (comma
+These are the output of trunks attack. You can specify more than one (comma
 separated) and they will be merged and sorted before being used by the
 reports.
 
@@ -315,6 +315,7 @@ Get http://localhost:6060: http: can't write HTTP request on broken connection
   "errors": []
 }
 ```
+
 ##### `plot`
 Generates an HTML5 page with an interactive plot based on
 [Dygraphs](http://dygraphs.com).
@@ -333,7 +334,7 @@ to complete that request.
 Computes and prints a text based histogram for the given buckets.
 Each bucket upper bound is non-inclusive.
 ```console
-cat results.bin | vegeta report -reporter='hist[0,2ms,4ms,6ms]'
+cat results.bin | trunks report -reporter='hist[0,2ms,4ms,6ms]'
 Bucket         #     %       Histogram
 [0,     2ms]   6007  32.65%  ########################
 [2ms,   4ms]   5505  29.92%  ######################
@@ -343,8 +344,8 @@ Bucket         #     %       Histogram
 
 ### `dump`
 ```console
-$ vegeta dump -h
-Usage of vegeta dump:
+$ trunks dump -h
+Usage of trunks dump:
   -dumper string
       Dumper [json, csv] (default "json")
   -inputs string
@@ -375,7 +376,7 @@ Whenever your load test can't be conducted due to Vegeta hitting machine limits
 such as open files, memory, CPU or network bandwidth, it's a good idea to use Vegeta in a distributed manner.
 
 In a hypothetical scenario where the desired attack rate is 60k requests per second,
-let's assume we have 3 machines with `vegeta` installed.
+let's assume we have 3 machines with `trunks` installed.
 
 Make sure open file descriptor and process limits are set to a high number for your user **on each machine**
 using the `ulimit` command.
@@ -385,7 +386,7 @@ and use that number on each attack. Here we'll use [pdsh](https://code.google.co
 
 ```shell
 $ pdsh -b -w '10.0.1.1,10.0.2.1,10.0.3.1' \
-    'echo "GET http://target/" | vegeta attack -rate=20000 -duration=60s > result.bin'
+    'echo "GET http://target/" | trunks attack -rate=20000 -duration=60s > result.bin'
 ```
 
 After the previous command finishes, we can gather the result files to use on our report.
@@ -400,7 +401,7 @@ The `report` command accepts multiple result files in a comma separated list.
 It'll read and sort them by timestamp before generating reports.
 
 ```console
-$ vegeta report -inputs="10.0.1.1.bin,10.0.2.1.bin,10.0.3.1.bin"
+$ trunks report -inputs="10.0.1.1.bin,10.0.2.1.bin,10.0.3.1.bin"
 Requests      [total, rate]         3600000, 60000.00
 Latencies     [mean, 95, 99, max]   223.340085ms, 326.913687ms, 416.537743ms, 7.788103259s
 Bytes In      [total, mean]         3714690, 3095.57
@@ -418,19 +419,19 @@ import (
   "fmt"
   "time"
 
-  vegeta "github.com/tsenart/vegeta/lib"
+  trunks "github.com/tsenart/trunks/lib"
 )
 
 func main() {
   rate := uint64(100) // per second
   duration := 4 * time.Second
-  targeter := vegeta.NewStaticTargeter(vegeta.Target{
+  targeter := trunks.NewStaticTargeter(trunks.Target{
     Method: "GET",
     URL:    "http://localhost:9100/",
   })
-  attacker := vegeta.NewAttacker()
+  attacker := trunks.NewAttacker()
 
-  var metrics vegeta.Metrics
+  var metrics trunks.Metrics
   for res := range attacker.Attack(targeter, rate, duration) {
     metrics.Add(res)
   }
@@ -458,11 +459,3 @@ Just pass a new number as the argument to change it.
 
 ## License
 See [LICENSE](LICENSE).
-
-## Donate
-
-If you use and love Vegeta, please consider sending some Satoshi to
-`1MDmKC51ve7Upxt75KoNM6x1qdXHFK6iW2`. In case you want to be mentioned as a
-sponsor, let me know!
-
-[![Donate Bitcoin](https://i.imgur.com/W9Vc51d.png)](#donate)

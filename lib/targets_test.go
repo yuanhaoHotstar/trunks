@@ -1,4 +1,4 @@
-package vegeta
+package trunks
 
 import (
 	"bytes"
@@ -117,7 +117,8 @@ func TestNewLazyTargeter(t *testing.T) {
 		}
 	}
 
-	bodyf, err := ioutil.TempFile("", "vegeta-")
+	bodyf, err := ioutil.TempFile("", "trunks
+-")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,8 +194,8 @@ func TestNewLazyTargeter(t *testing.T) {
 		{
 			Method: "SUBSCRIBE",
 			URL:    "http://foobar.org/sub",
- 			Body:   []byte{},
- 			Header: http.Header{"Content-Type": []string{"text/plain"}},
+			Body:   []byte{},
+			Header: http.Header{"Content-Type": []string{"text/plain"}},
 		},
 	} {
 		var got Target

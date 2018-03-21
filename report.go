@@ -8,11 +8,11 @@ import (
 	"os/signal"
 	"strings"
 
-	vegeta "github.com/tsenart/vegeta/lib"
+	trunks "github.com/straightdave/trunks/lib"
 )
 
 func reportCmd() command {
-	fs := flag.NewFlagSet("vegeta report", flag.ExitOnError)
+	fs := flag.NewFlagSet("trunks report", flag.ExitOnError)
 	reporter := fs.String("reporter", "text", "Reporter [text, json, plot, hist[buckets]]")
 	inputs := fs.String("inputs", "stdin", "Input files (comma separated)")
 	output := fs.String("output", "stdout", "Output file")
@@ -39,7 +39,7 @@ func report(reporter, inputs, output string) error {
 		defer in.Close()
 		srcs[i] = in
 	}
-	dec := vegeta.NewDecoder(srcs...)
+	dec := trunks.NewDecoder(srcs...)
 
 	out, err := file(output, true)
 	if err != nil {
@@ -48,29 +48,29 @@ func report(reporter, inputs, output string) error {
 	defer out.Close()
 
 	var (
-		rep    vegeta.Reporter
-		report vegeta.Report
+		rep    trunks.Reporter
+		report trunks.Report
 	)
 
 	switch reporter[:4] {
 	case "text":
-		var m vegeta.Metrics
-		rep, report = vegeta.NewTextReporter(&m), &m
+		var m trunks.Metrics
+		rep, report = trunks.NewTextReporter(&m), &m
 	case "json":
-		var m vegeta.Metrics
-		rep, report = vegeta.NewJSONReporter(&m), &m
+		var m trunks.Metrics
+		rep, report = trunks.NewJSONReporter(&m), &m
 	case "plot":
-		var rs vegeta.Results
-		rep, report = vegeta.NewPlotReporter("Vegeta Plot", &rs), &rs
+		var rs trunks.Results
+		rep, report = trunks.NewPlotReporter("Vegeta Plot", &rs), &rs
 	case "hist":
 		if len(reporter) < 6 {
 			return fmt.Errorf("bad buckets: '%s'", reporter[4:])
 		}
-		var hist vegeta.Histogram
+		var hist trunks.Histogram
 		if err := hist.Buckets.UnmarshalText([]byte(reporter[4:])); err != nil {
 			return err
 		}
-		rep, report = vegeta.NewHistogramReporter(&hist), &hist
+		rep, report = trunks.NewHistogramReporter(&hist), &hist
 	default:
 		return fmt.Errorf("unknown reporter: %q", reporter)
 	}
@@ -84,7 +84,7 @@ decode:
 		case <-sigch:
 			break decode
 		default:
-			var r vegeta.Result
+			var r trunks.Result
 			if err = dec.Decode(&r); err != nil {
 				if err == io.EOF {
 					break decode
@@ -95,7 +95,7 @@ decode:
 		}
 	}
 
-	if c, ok := report.(vegeta.Closer); ok {
+	if c, ok := report.(trunks.Closer); ok {
 		c.Close()
 	}
 

@@ -1,4 +1,4 @@
-package vegeta
+package trunks
 
 import (
 	"encoding/json"
@@ -177,7 +177,8 @@ const (
     html2canvas(document.body, {background: "#fff"}).then(function(canvas) {
       var url = canvas.toDataURL('image/png').replace(/^data:image\/[^;]/, 'data:application/octet-stream');
       var a = document.createElement("a");
-      a.setAttribute("download", "vegeta-plot.png");
+      a.setAttribute("download", "trunks
+-plot.png");
       a.setAttribute("href", url);
       a.click();
     });
