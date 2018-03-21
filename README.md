@@ -1,34 +1,14 @@
-# Vegeta [![Build Status](https://secure.travis-ci.org/tsenart/vegeta.svg)](http://travis-ci.org/tsenart/vegeta) [![Go Report Card](https://goreportcard.com/badge/github.com/tsenart/vegeta)](https://goreportcard.com/report/github.com/tsenart/vegeta) [![GoDoc](https://godoc.org/github.com/tsenart/vegeta?status.svg)](https://godoc.org/github.com/tsenart/vegeta) [![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/tsenart/vegeta?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge) [![Donate](https://img.shields.io/badge/donate-bitcoin-yellow.svg)](#donate)
+# Trunks [![Build Status](https://travis-ci.org/straightdave/trunks.svg?branch=master)](https://travis-ci.org/straightdave/trunks)
 
-Vegeta is a versatile HTTP load testing tool built out of a need to drill
+Trunks, same as Vegeta, is yet another HTTP load testing tool built out of a need to drill
 HTTP services with a constant request rate.
 It can be used both as a command line utility and a library.
 
-![Vegeta](http://fc09.deviantart.net/fs49/i/2009/198/c/c/ssj2_vegeta_by_trunks24.jpg)
-
-## Install
-### Pre-compiled executables
-Get them [here](http://github.com/tsenart/vegeta/releases).
-
-### Homebrew on Mac OS X
-You can install Vegeta using the [Homebrew](https://github.com/Homebrew/homebrew/) package manager on Mac OS X:
-```shell
-$ brew update && brew install vegeta
-```
-
-### Source
-You need `go` installed and `GOBIN` in your `PATH`. Once that is done, run the
-command:
-```shell
-$ go get -u github.com/tsenart/vegeta
-```
-
-## Contributing
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+![Trunks](http://images2.wikia.nocookie.net/__cb20100725123520/dragonballfanon/images/5/52/Future_Trunks_SSJ2.jpg)
 
 ## Usage manual
 ```console
-Usage: vegeta [global flags] <command> [command flags]
+Usage: trunks [global flags] <command> [command flags]
 
 global flags:
   -cpus int
