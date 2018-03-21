@@ -1,6 +1,7 @@
 package trunks
 
 import (
+	"bytes"
 	"crypto/tls"
 	"fmt"
 	"io"
@@ -20,6 +21,7 @@ type Attacker struct {
 	stopch    chan struct{}
 	workers   uint64
 	redirects int
+	respf     string
 }
 
 const (
@@ -43,6 +45,10 @@ var (
 	DefaultLocalAddr = net.IPAddr{IP: net.IPv4zero}
 	// DefaultTLSConfig is the default tls.Config an Attacker uses.
 	DefaultTLSConfig = &tls.Config{InsecureSkipVerify: true}
+)
+
+var (
+	dumpers sync.WaitGroup
 )
 
 // NewAttacker returns a new Attacker with default options which are overridden
@@ -70,6 +76,10 @@ func NewAttacker(opts ...func(*Attacker)) *Attacker {
 	}
 
 	return a
+}
+
+func RespondTo(rf string) func(*Attacker) {
+	return func(a *Attacker) { a.respf = rf }
 }
 
 // Workers returns a functional option which sets the initial number of workers
@@ -211,6 +221,15 @@ func (a *Attacker) Stop() {
 	}
 }
 
+// WaitDumpResp waits until all dumpings are done
+func (a *Attacker) WaitDumpResp() {
+	go func() {
+		fmt.Println("Waiting for dumping all responses to file...")
+		defer fmt.Println("Done")
+		dumpers.Wait()
+	}()
+}
+
 func (a *Attacker) attack(tr Targeter, workers *sync.WaitGroup, ticks <-chan time.Time, results chan<- *Result) {
 	defer workers.Done()
 	for tm := range ticks {
@@ -248,11 +267,28 @@ func (a *Attacker) hit(tr Targeter, tm time.Time) *Result {
 	}
 	defer r.Body.Close()
 
-	in, err := io.Copy(ioutil.Discard, r.Body)
-	if err != nil {
-		return &res
+	if a.respf == "" {
+		in, err := io.Copy(ioutil.Discard, r.Body)
+		if err != nil {
+			return &res
+		}
+		res.BytesIn = uint64(in)
+	} else {
+		var buf bytes.Buffer
+		in, err := io.Copy(&buf, r.Body)
+		if err != nil {
+			return &res
+		}
+		res.BytesIn = uint64(in)
+
+		dumpers.Add(1)
+		go func() {
+			defer dumpers.Done()
+
+			// TODO: append to an opened file
+
+		}()
 	}
-	res.BytesIn = uint64(in)
 
 	if req.ContentLength != -1 {
 		res.BytesOut = uint64(req.ContentLength)

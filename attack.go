@@ -41,6 +41,7 @@ func attackCmd() command {
 	fs.Var(&opts.headers, "header", "Request header")
 	fs.Var(&opts.laddr, "laddr", "Local IP address")
 	fs.BoolVar(&opts.keepalive, "keepalive", true, "Use persistent connections")
+	fs.StringVar(&opts.respf, "respond to log", "", "Dump responses to file")
 
 	return command{fs, func(args []string) error {
 		fs.Parse(args)
@@ -73,6 +74,7 @@ type attackOpts struct {
 	headers     headers
 	laddr       localAddr
 	keepalive   bool
+	respf       string
 }
 
 // attack validates the attack arguments, sets up the
@@ -134,6 +136,11 @@ func attack(opts *attackOpts) (err error) {
 		trunks.Connections(opts.connections),
 		trunks.HTTP2(opts.http2),
 	)
+
+	if opts.respf != "" {
+		trunks.RespondTo(opts.respf)(atk)
+		defer atk.WaitDumpResp()
+	}
 
 	res := atk.Attack(tr, opts.rate, opts.duration)
 	enc := trunks.NewEncoder(out)
