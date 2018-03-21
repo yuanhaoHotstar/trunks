@@ -117,8 +117,7 @@ func TestNewLazyTargeter(t *testing.T) {
 		}
 	}
 
-	bodyf, err := ioutil.TempFile("", "trunks
--")
+	bodyf, err := ioutil.TempFile("", "trunks-")
 	if err != nil {
 		t.Fatal(err)
 	}
