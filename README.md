@@ -1,6 +1,6 @@
 # Trunks [![Build Status](https://travis-ci.org/straightdave/trunks.svg?branch=master)](https://travis-ci.org/straightdave/trunks)
 
-Trunks, same as Vegeta, is yet another HTTP load testing tool built out of a need to drill
+Trunks, like every son, is derived from the father Vegeta with some enhanced skills. Same as Vegeta, Trunks is yet another HTTP load testing tool built out of a need to drill
 HTTP services with a constant request rate.
 It can be used both as a command line utility and a library.
 
