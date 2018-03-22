@@ -41,7 +41,7 @@ func attackCmd() command {
 	fs.Var(&opts.headers, "header", "Request header")
 	fs.Var(&opts.laddr, "laddr", "Local IP address")
 	fs.BoolVar(&opts.keepalive, "keepalive", true, "Use persistent connections")
-	fs.StringVar(&opts.respf, "respond to log", "", "Dump responses to file")
+	fs.StringVar(&opts.respf, "respf", "", "Dump responses to file")
 
 	return command{fs, func(args []string) error {
 		fs.Parse(args)

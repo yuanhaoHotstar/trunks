@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -48,7 +50,9 @@ var (
 )
 
 var (
-	dumpers sync.WaitGroup
+	dumpers     sync.WaitGroup
+	memBuf      bytes.Buffer
+	memBufMutex sync.Mutex
 )
 
 // NewAttacker returns a new Attacker with default options which are overridden
@@ -221,13 +225,19 @@ func (a *Attacker) Stop() {
 	}
 }
 
-// WaitDumpResp waits until all dumpings are done
+// WaitDumpResp waits until all response dumpings are done
 func (a *Attacker) WaitDumpResp() {
-	go func() {
-		fmt.Println("Waiting for dumping all responses to file...")
-		defer fmt.Println("Done")
-		dumpers.Wait()
-	}()
+	dumpers.Wait()
+
+	f, err := os.OpenFile(a.respf, os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Fatalln("Fatal when opening file:", err)
+	}
+	defer f.Close()
+
+	if _, err := f.Write(memBuf.Bytes()); err != nil {
+		log.Fatalln("Fatal when writing to file:", err)
+	}
 }
 
 func (a *Attacker) attack(tr Targeter, workers *sync.WaitGroup, ticks <-chan time.Time, results chan<- *Result) {
@@ -274,20 +284,21 @@ func (a *Attacker) hit(tr Targeter, tm time.Time) *Result {
 		}
 		res.BytesIn = uint64(in)
 	} else {
-		var buf bytes.Buffer
-		in, err := io.Copy(&buf, r.Body)
+		buf := &bytes.Buffer{}
+		in, err := io.Copy(buf, r.Body)
 		if err != nil {
 			return &res
 		}
 		res.BytesIn = uint64(in)
 
 		dumpers.Add(1)
-		go func() {
+		go func(b *bytes.Buffer) {
 			defer dumpers.Done()
-
-			// TODO: append to an opened file
-
-		}()
+			memBufMutex.Lock()
+			defer memBufMutex.Unlock()
+			memBuf.Write(b.Bytes())
+			memBuf.WriteString("\r\n\r\n")
+		}(buf)
 	}
 
 	if req.ContentLength != -1 {
