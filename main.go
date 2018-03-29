@@ -13,6 +13,7 @@ import (
 func main() {
 	commands := map[string]command{
 		"attack": attackCmd(),
+		"burn":   burnCmd(),
 		"report": reportCmd(),
 		"dump":   dumpCmd(),
 	}
