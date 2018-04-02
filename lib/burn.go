@@ -1,8 +1,9 @@
-package lib
+package trunks
 
 import (
 	"fmt"
 	"log"
+	"reflect"
 	"runtime"
 	"sync"
 	"time"
@@ -17,15 +18,17 @@ const (
 )
 
 type GTargeter struct {
-	Target     string
-	IsEtcd     bool
-	MethodName string
-	Args       []*interface{}
+	Target       string
+	IsEtcd       bool
+	MethodName   string
+	Requests     []*interface{}
+	ResponseType reflect.Type
 }
 
 type Burner struct {
-	conn    *grpc.ClientConn
-	workers uint64
+	Conn    *grpc.ClientConn
+	Workers uint64
+	Ctx     context
 	stopch  chan struct{}
 }
 
@@ -51,9 +54,11 @@ func (t *GTargeter) GenBurner() (burner *Burner, err error) {
 		return nil, fmt.Errorf("Not Healthy")
 	}
 
+	ctx, _ := context.Background()
 	return &Burner{
-		conn:    c,
-		workers: DefaultGRPCWorkers,
+		Conn:    c,
+		Workers: DefaultGRPCWorkers,
+		Ctx:     ctx,
 	}, nil
 }
 
@@ -86,16 +91,12 @@ func (b *Burner) Burn(rate uint64, du time.Duration) <-chan *Result {
 				return
 			default: // all workers are blocked. start one more and try again
 				workers.Add(1)
-				go b.burn(tr, &workers, ticks, results)
+				go b.burn(&workers, ticks, results)
 			}
 		}
 	}()
 
 	return results
-}
-
-func (b *Burner) Close() {
-	b.conn.Close()
 }
 
 func (b *Burner) Stop() {
@@ -112,4 +113,53 @@ func (b *Burner) burn(workers *sync.WaitGroup, ticks <-chan time.Time, results c
 	for tm := range ticks {
 		results <- b.hit(tm)
 	}
+}
+
+func (b *Burner) hit(ctx context, tm time.Time) *Result {
+	var res = Result{Timestamp: tm}
+	var err error
+
+	defer func() {
+		res.Latency = time.Since(tm)
+		if err != nil {
+			res.Error = err.Error()
+		}
+	}()
+
+	conn := b.Conn
+	conn.Invoke()
+
+	if a.respf == "" {
+		in, err := io.Copy(ioutil.Discard, r.Body)
+		if err != nil {
+			return &res
+		}
+		res.BytesIn = uint64(in)
+	} else {
+		buf := &bytes.Buffer{}
+		in, err := io.Copy(buf, r.Body)
+		if err != nil {
+			return &res
+		}
+		res.BytesIn = uint64(in)
+
+		dumpers.Add(1)
+		go func(b *bytes.Buffer) {
+			defer dumpers.Done()
+			memBufMutex.Lock()
+			defer memBufMutex.Unlock()
+			memBuf.Write(b.Bytes())
+			memBuf.WriteString("\r\n\r\n")
+		}(buf)
+	}
+
+	if req.ContentLength != -1 {
+		res.BytesOut = uint64(req.ContentLength)
+	}
+
+	if res.Code = uint16(r.StatusCode); res.Code < 200 || res.Code >= 400 {
+		res.Error = r.Status
+	}
+
+	return &res
 }
