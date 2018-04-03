@@ -1,33 +1,24 @@
 package trunks
 
 import (
+	"context"
 	"fmt"
-	"reflect"
-	"runtime"
+	"log"
+	// "runtime"
 	"sync"
 	"time"
 
-	"golang.org/x/net/context"
+	proto "github.com/golang/protobuf/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
 type GTargeter struct {
-	Target       string
-	IsEtcd       bool
-	MethodName   string
-	Requests     []*interface{}
-	ResponseType reflect.Type
-}
-
-// create an argument for gRPC invoke
-func (t *GTargeter) Request() interface{} {
-	return nil
-}
-
-// create a response for gRPC invoke
-func (t *GTargeter) Response() interface{} {
-	return nil
+	Target     string
+	IsEtcd     bool
+	MethodName string
+	Request    proto.Message
+	Response   proto.Message
 }
 
 type Burner struct {
@@ -40,6 +31,7 @@ type Burner struct {
 // since Target could be Etcd, the connection may be in a different way
 // so Burnner (connection owner and initializer) comes from target
 func (t *GTargeter) GenBurner() (burner *Burner, err error) {
+	log.Println("gen burner...")
 	if t.IsEtcd {
 		return nil, fmt.Errorf("Etcd is not supported yet")
 	}
@@ -47,6 +39,7 @@ func (t *GTargeter) GenBurner() (burner *Burner, err error) {
 	// directy dialing
 	c, err := grpc.Dial(t.Target, grpc.WithInsecure())
 	if err != nil {
+		log.Println("dial failed:", err.Error())
 		return nil, err
 	}
 
@@ -64,12 +57,12 @@ func (t *GTargeter) GenBurner() (burner *Burner, err error) {
 
 	return &Burner{
 		Conn:    c,
-		Workers: uint64(runtime.NumCPU()),
+		Workers: uint64(20),
 		Ctx:     context.Background(),
 	}, nil
 }
 
-func (b *Burner) Burn(tgt GTargeter, rate uint64, du time.Duration) <-chan *Result {
+func (b *Burner) Burn(tgt *GTargeter, rate uint64, du time.Duration) <-chan *Result {
 
 	var workers sync.WaitGroup
 	results := make(chan *Result)
@@ -115,14 +108,14 @@ func (b *Burner) Stop() {
 	}
 }
 
-func (b *Burner) burn(tgt GTargeter, workers *sync.WaitGroup, ticks <-chan time.Time, results chan<- *Result) {
+func (b *Burner) burn(tgt *GTargeter, workers *sync.WaitGroup, ticks <-chan time.Time, results chan<- *Result) {
 	defer workers.Done()
 	for tm := range ticks {
 		results <- b.hit(tgt, tm)
 	}
 }
 
-func (b *Burner) hit(tgt GTargeter, tm time.Time) *Result {
+func (b *Burner) hit(tgt *GTargeter, tm time.Time) *Result {
 	var res = Result{Timestamp: tm}
 	var err error
 
@@ -133,12 +126,8 @@ func (b *Burner) hit(tgt GTargeter, tm time.Time) *Result {
 		}
 	}()
 
-	req := tgt.Request()
-	resp := tgt.Response()
-
-	if err := b.Conn.Invoke(b.Ctx, tgt.MethodName, &req, &resp, nil); err != nil {
-		res.Error = err.Error()
-	}
+	var opts []grpc.CallOption
+	err = b.Conn.Invoke(b.Ctx, tgt.MethodName, tgt.Request, tgt.Response, opts...)
 
 	return &res
 }
