@@ -2,7 +2,6 @@ package trunks
 
 import (
 	"fmt"
-	"log"
 	"reflect"
 	"runtime"
 	"sync"
@@ -13,10 +12,6 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
-const (
-	DefaultGRPCWorkers = runtime.NumCPU()
-)
-
 type GTargeter struct {
 	Target       string
 	IsEtcd       bool
@@ -25,19 +20,31 @@ type GTargeter struct {
 	ResponseType reflect.Type
 }
 
+// create an argument for gRPC invoke
+func (t *GTargeter) Request() interface{} {
+	return nil
+}
+
+// create a response for gRPC invoke
+func (t *GTargeter) Response() interface{} {
+	return nil
+}
+
 type Burner struct {
 	Conn    *grpc.ClientConn
 	Workers uint64
-	Ctx     context
+	Ctx     context.Context
 	stopch  chan struct{}
 }
 
+// since Target could be Etcd, the connection may be in a different way
+// so Burnner (connection owner and initializer) comes from target
 func (t *GTargeter) GenBurner() (burner *Burner, err error) {
 	if t.IsEtcd {
 		return nil, fmt.Errorf("Etcd is not supported yet")
 	}
 
-	// dialing
+	// directy dialing
 	c, err := grpc.Dial(t.Target, grpc.WithInsecure())
 	if err != nil {
 		return nil, err
@@ -46,30 +53,30 @@ func (t *GTargeter) GenBurner() (burner *Burner, err error) {
 	// healthy check
 	grpcCheck := grpc_health_v1.NewHealthClient(c)
 	checkReq := &grpc_health_v1.HealthCheckRequest{
-		Service: "", // leave empty to check all services
+		Service: "",
 	}
 
-	_, checkErr := grpcCheck.Check(ctx, checkReq)
+	_, checkErr := grpcCheck.Check(context.Background(), checkReq)
 	if checkErr != nil {
+		c.Close()
 		return nil, fmt.Errorf("Not Healthy")
 	}
 
-	ctx, _ := context.Background()
 	return &Burner{
 		Conn:    c,
-		Workers: DefaultGRPCWorkers,
-		Ctx:     ctx,
+		Workers: uint64(runtime.NumCPU()),
+		Ctx:     context.Background(),
 	}, nil
 }
 
-func (b *Burner) Burn(rate uint64, du time.Duration) <-chan *Result {
+func (b *Burner) Burn(tgt GTargeter, rate uint64, du time.Duration) <-chan *Result {
 
 	var workers sync.WaitGroup
 	results := make(chan *Result)
 	ticks := make(chan time.Time)
-	for i := uint64(0); i < b.workers; i++ {
+	for i := uint64(0); i < b.Workers; i++ {
 		workers.Add(1)
-		go b.burn(&workers, ticks, results)
+		go b.burn(tgt, &workers, ticks, results)
 	}
 
 	go func() {
@@ -91,7 +98,7 @@ func (b *Burner) Burn(rate uint64, du time.Duration) <-chan *Result {
 				return
 			default: // all workers are blocked. start one more and try again
 				workers.Add(1)
-				go b.burn(&workers, ticks, results)
+				go b.burn(tgt, &workers, ticks, results)
 			}
 		}
 	}()
@@ -108,14 +115,14 @@ func (b *Burner) Stop() {
 	}
 }
 
-func (b *Burner) burn(workers *sync.WaitGroup, ticks <-chan time.Time, results chan<- *Result) {
+func (b *Burner) burn(tgt GTargeter, workers *sync.WaitGroup, ticks <-chan time.Time, results chan<- *Result) {
 	defer workers.Done()
 	for tm := range ticks {
-		results <- b.hit(tm)
+		results <- b.hit(tgt, tm)
 	}
 }
 
-func (b *Burner) hit(ctx context, tm time.Time) *Result {
+func (b *Burner) hit(tgt GTargeter, tm time.Time) *Result {
 	var res = Result{Timestamp: tm}
 	var err error
 
@@ -126,39 +133,11 @@ func (b *Burner) hit(ctx context, tm time.Time) *Result {
 		}
 	}()
 
-	conn := b.Conn
-	conn.Invoke()
+	req := tgt.Request()
+	resp := tgt.Response()
 
-	if a.respf == "" {
-		in, err := io.Copy(ioutil.Discard, r.Body)
-		if err != nil {
-			return &res
-		}
-		res.BytesIn = uint64(in)
-	} else {
-		buf := &bytes.Buffer{}
-		in, err := io.Copy(buf, r.Body)
-		if err != nil {
-			return &res
-		}
-		res.BytesIn = uint64(in)
-
-		dumpers.Add(1)
-		go func(b *bytes.Buffer) {
-			defer dumpers.Done()
-			memBufMutex.Lock()
-			defer memBufMutex.Unlock()
-			memBuf.Write(b.Bytes())
-			memBuf.WriteString("\r\n\r\n")
-		}(buf)
-	}
-
-	if req.ContentLength != -1 {
-		res.BytesOut = uint64(req.ContentLength)
-	}
-
-	if res.Code = uint16(r.StatusCode); res.Code < 200 || res.Code >= 400 {
-		res.Error = r.Status
+	if err := b.Conn.Invoke(b.Ctx, tgt.MethodName, &req, &resp, nil); err != nil {
+		res.Error = err.Error()
 	}
 
 	return &res
