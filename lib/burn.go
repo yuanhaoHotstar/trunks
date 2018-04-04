@@ -51,8 +51,7 @@ func (t *GTargeter) GenBurner() (burner *Burner, err error) {
 
 	_, checkErr := grpcCheck.Check(context.Background(), checkReq)
 	if checkErr != nil {
-		c.Close()
-		return nil, fmt.Errorf("Not Healthy")
+		log.Printf("Not Healthy: %v", checkErr)
 	}
 
 	return &Burner{
