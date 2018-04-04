@@ -1,8 +1,10 @@
 # Trunks [![Build Status](https://travis-ci.org/straightdave/trunks.svg?branch=master)](https://travis-ci.org/straightdave/trunks)
 
-Trunks, like every son, is derived from the father Vegeta with some enhanced skills. Same as Vegeta, Trunks is yet another HTTP load testing tool built out of a need to drill
-HTTP services with a constant request rate.
-It can be used both as a command line utility and a library.
+Trunks, like every son, is derived from the father Vegeta with some enhanced skills:
+1. dump HTTP reponses
+2. gRPC support
+
+>My purpose is building a universal gRPC tool. But it's Golang and it's gRPC, we need the client stub and we need to do more than just one command. So far we can build custom program with Trunks as a lib.
 
 ![Trunks](http://images2.wikia.nocookie.net/__cb20100725123520/dragonballfanon/images/5/52/Future_Trunks_SSJ2.jpg)
 
@@ -20,6 +22,8 @@ for original usage of Vegeta, please refer to [vegeta' readme](https://github.co
 ```
 
 ### gRPC perf test (as a lib)
+
+
 Sample file:
 ```go
 package main
