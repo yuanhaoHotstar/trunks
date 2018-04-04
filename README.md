@@ -4,7 +4,7 @@ Trunks, like every son, is derived from the father Vegeta with some enhanced ski
 1. dump HTTP reponses
 2. gRPC support
 
->My purpose is building a universal gRPC tool. But it's Golang and it's gRPC, we need the client stub and we need to do more than just one command. So far we can build custom program with Trunks as a lib.
+>My purpose is building a universal gRPC tool. But it's Golang and it's gRPC, we need the client stub and we need to do more than just one command. So far we can build custom program with Trunks as a lib. Sooner I would add some glue code to generate such client stub code and run it automatically.
 
 ![Trunks](http://images2.wikia.nocookie.net/__cb20100725123520/dragonballfanon/images/5/52/Future_Trunks_SSJ2.jpg)
 
@@ -14,15 +14,16 @@ for original usage of Vegeta, please refer to [vegeta' readme](https://github.co
 
 ## More functionalities
 
-### dump http response to file
+### dump http attck response to file
 ```console
-(add one more option '-respf')
+(add one more option '-respf' to 'attack')
 -respf string
       Dump responses to file
 ```
 
 ### gRPC perf test (as a lib)
 
+use 'burn' to burn the gRPC services. Capable to any gRPC service.
 
 Sample file:
 ```go
@@ -42,7 +43,7 @@ func main() {
     Target:     ":8087",
     IsEtcd:     false,
     MethodName: "/myapppb.MyApp/Hello",
-    Request:    &HelloRequest{Name: "dave"},
+    Request:    &HelloRequest{Name: "dave"},   // from xxx.pb.go
     Response:   &HelloResponse{},
   }
 
@@ -77,3 +78,11 @@ func main() {
 ```
 
 For details please read the code (currently smell but promised to be better)
+
+## TODO
+
+### connection pool
+to support client side load balance testing against a cluster of service instances with service discovery.
+
+### glue code for gRPC perf
+to make it a portable one-statement command. Quick and easy.
