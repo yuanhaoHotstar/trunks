@@ -10,7 +10,6 @@ import (
 
 	proto "github.com/golang/protobuf/proto"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
 type GTargeter struct {
@@ -43,17 +42,6 @@ func (t *GTargeter) GenBurner() (burner *Burner, err error) {
 		return nil, err
 	}
 
-	// healthy check
-	grpcCheck := grpc_health_v1.NewHealthClient(c)
-	checkReq := &grpc_health_v1.HealthCheckRequest{
-		Service: "",
-	}
-
-	_, checkErr := grpcCheck.Check(context.Background(), checkReq)
-	if checkErr != nil {
-		log.Printf("Not Healthy: %v", checkErr)
-	}
-
 	return &Burner{
 		Conn:    c,
 		Workers: uint64(20),
@@ -62,7 +50,6 @@ func (t *GTargeter) GenBurner() (burner *Burner, err error) {
 }
 
 func (b *Burner) Burn(tgt *GTargeter, rate uint64, du time.Duration) <-chan *Result {
-
 	var workers sync.WaitGroup
 	results := make(chan *Result)
 	ticks := make(chan time.Time)
