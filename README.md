@@ -25,64 +25,76 @@ for original usage of Vegeta, please refer to [vegeta' readme](https://github.co
 
 use 'burn' to burn the gRPC services. Capable to any gRPC service.
 
-Sample file:
+Example:
+
+>In this example, I use google.golang.org/grpc/examples/route_guide as server.
+
 ```go
 package main
 
 import (
-  "fmt"
-  "log"
-  "time"
+    "fmt"
+    "time"
 
-  trunks "github.com/straightdave/trunks/lib"
+    trunks "github.com/straightdave/trunks/lib"
+    // for convenience, change the client_stub.pb.go into package main
 )
 
 func main() {
-  log.Println("hello")
-  tgt := &trunks.GTargeter{
-    Target:     ":8087",
-    IsEtcd:     false,
-    MethodName: "/myapppb.MyApp/Hello",
-    Request:    &HelloRequest{Name: "dave"},   // from xxx.pb.go
-    Response:   &HelloResponse{},
-  }
+    tgt := &trunks.Gtarget{
+        MethodName: "/routeguide.RouteGuide/GetFeature",
+        Request:    &Point{Latitude: 10000, Longitude: 10000},
+        Response:   &Feature{},
+    }
 
-  b, err := tgt.GenBurner()
-  if err != nil {
-    fmt.Println(err)
-    return
-  }
-  defer b.Conn.Close()
+    burner, err := trunks.NewBurner(
+        []string{":10000"},
+        trunks.NumWorker(20), // if not specified, 10 is default
+    )
+    if err != nil {
+        fmt.Println(err)
+        return
+    }
+    defer burner.Close()
 
-  var metrics trunks.Metrics
+    var metrics trunks.Metrics
+    startT := time.Now()
+    for res := range burner.Burn(tgt, uint64(5), 10*time.Second) {
+        metrics.Add(res)
+    }
+    dur := time.Since(startT)
+    metrics.Close()
 
-  startT := time.Now()
-  for res := range b.Burn(tgt, uint64(5), 10*time.Second) {
-    metrics.Add(res)
-  }
-  dur := time.Since(startT)
-
-  metrics.Close()
-
-  fmt.Printf("dur: %v\n", dur.Seconds())
-  fmt.Printf("earliest: %v\n", metrics.Earliest.Sub(startT).Nanoseconds())
-  fmt.Printf("latest: %v\n", metrics.Latest.Sub(startT).Nanoseconds())
-  fmt.Printf("end: %v\n", metrics.End.Sub(startT).Nanoseconds())
-  fmt.Printf("reqs: %d\n", metrics.Requests)
-  fmt.Printf("50th: %s\n", metrics.Latencies.P50)
-  fmt.Printf("95th: %s\n", metrics.Latencies.P95)
-  fmt.Printf("99th: %s\n", metrics.Latencies.P99)
-  fmt.Printf("mean: %s\n", metrics.Latencies.Mean)
-  fmt.Printf("max: %s\n", metrics.Latencies.Max)
+    fmt.Printf("dur: %v\n", dur.Seconds())
+    fmt.Printf("earliest: %v\n", metrics.Earliest.Sub(startT).Nanoseconds())
+    fmt.Printf("latest: %v\n", metrics.Latest.Sub(startT).Nanoseconds())
+    fmt.Printf("end: %v\n", metrics.End.Sub(startT).Nanoseconds())
+    fmt.Printf("reqs: %d\n", metrics.Requests)
+    fmt.Printf("50th: %s\n", metrics.Latencies.P50)
+    fmt.Printf("95th: %s\n", metrics.Latencies.P95)
+    fmt.Printf("99th: %s\n", metrics.Latencies.P99)
+    fmt.Printf("mean: %s\n", metrics.Latencies.Mean)
+    fmt.Printf("max: %s\n", metrics.Latencies.Max)
 }
+
 ```
 
-For details please read the code (currently smell but promised to be better)
+For this code snippet, it would result in:
+```console
+dur: 9.802099215
+earliest: 68670
+latest: 9800068577
+end: 9802058490
+reqs: 50
+50th: 5.974748ms
+95th: 6.084433ms
+99th: 6.10946ms
+mean: 5.143272ms
+max: 6.19225ms
+```
+
 
 ## TODO
 
-### connection pool
-to support client side load balance testing against a cluster of service instances with service discovery.
-
-### glue code for gRPC perf
-to make it a portable one-statement command. Quick and easy.
+### glue code for one-click-poof
+to make this a portable one-statement command. Quick and easy.

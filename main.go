@@ -13,7 +13,6 @@ import (
 func main() {
 	commands := map[string]command{
 		"attack": attackCmd(),
-		"burn":   burnCmd(), // burn: gRPC perf
 		"report": reportCmd(),
 		"dump":   dumpCmd(),
 	}
