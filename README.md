@@ -21,13 +21,17 @@ for original usage of Vegeta, please refer to [vegeta' readme](https://github.co
       Dump responses to file
 ```
 
-### gRPC perf test (as a lib)
+### gRPC perf test (now as a lib)
 
-use 'burn' to burn the gRPC services. Capable to any gRPC service.
+Using the _burn_ attack to burn the gRPC services. Capable with any gRPC service.
+
+Given multiple hosts ('IP:port' of service instances), Trunks will use simple round-robin as client-side load balance mechanism.
+
+>Burning duration is shorter. No need to do the real __service discovery__ or __watch / real-time live connection's update__. Say, if testing service instances registered to Etcd, we don't need to watch the status of all instances and adjust the connection pool. During the short time of perf testing, we assume the instance hosts are _not-changing_.
 
 Example:
 
->In this example, I use google.golang.org/grpc/examples/route_guide as server.
+>In this example, I use google.golang.org/grpc/examples/route_guide as the target server.
 
 ```go
 package main
@@ -48,7 +52,7 @@ func main() {
     }
 
     burner, err := trunks.NewBurner(
-        []string{":10000"},
+        []string{":10000"},   // a pool with round-robin picker
         trunks.NumWorker(20), // if not specified, 10 is default
     )
     if err != nil {
