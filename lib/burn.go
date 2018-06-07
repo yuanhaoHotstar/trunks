@@ -14,14 +14,14 @@ import (
 var (
 	ErrNoSubConn   = fmt.Errorf("No Sub Connections")
 	ErrNoGrpcHosts = fmt.Errorf("No gRPC Hosts Provided")
+	ErrNoRequest   = fmt.Errorf("No request provided")
 )
 
 // simple client-side round-robin pool
 type pool struct {
 	conns []*grpc.ClientConn
-
-	mu   sync.Mutex
-	next int
+	mu    sync.Mutex
+	next  int
 }
 
 func (p *pool) Pick() (*grpc.ClientConn, error) {
@@ -54,14 +54,34 @@ func (p *pool) Close() error {
 // which gRPC method to call
 type Gtarget struct {
 	MethodName string
-	Request    proto.Message
+	Requests   []proto.Message
 	Response   proto.Message
+
+	indexMux sync.Mutex
+	index    uint
+}
+
+func (tgt *Gtarget) getRequest(loop bool) (proto.Message, error) {
+	l := len(tgt.Requests)
+	if l == 0 {
+		return nil, ErrNoRequest
+	}
+	if l == 1 {
+		return tgt.Requests[0], nil
+	}
+
+	tgt.indexMux.Lock()
+	defer tgt.indexMux.Unlock()
+	res := tgt.Requests[tgt.index%uint(l)]
+	tgt.index++
+	return res, nil
 }
 
 // the burner
 type Burner struct {
 	pool      *pool
 	numWorker uint64
+	loop      bool
 	ctx       context.Context
 	stopch    chan struct{}
 }
@@ -75,7 +95,7 @@ func NewBurner(hosts []string, opts ...func(*Burner)) (*Burner, error) {
 	for _, h := range hosts {
 		c, err := grpc.Dial(h, grpc.WithInsecure())
 		if err != nil {
-			return nil, fmt.Errorf("Init pool failed: %v", err)
+			return nil, fmt.Errorf("Dialing to [%s] failed: %v", h, err)
 		}
 		p.conns = append(p.conns, c)
 	}
@@ -96,6 +116,10 @@ func NewBurner(hosts []string, opts ...func(*Burner)) (*Burner, error) {
 
 func NumWorker(num uint64) func(*Burner) {
 	return func(b *Burner) { b.numWorker = num }
+}
+
+func WithLoop() func(*Burner) {
+	return func(b *Burner) { b.loop = true }
 }
 
 func (b *Burner) Close() error {
@@ -128,7 +152,7 @@ func (b *Burner) Burn(tgt *Gtarget, rate uint64, du time.Duration) <-chan *Resul
 				}
 			case <-b.stopch:
 				return
-			default: // all workers are blocked. start one more and try again
+			default:
 				workers.Add(1)
 				go b.burn(tgt, &workers, ticks, results)
 			}
@@ -171,7 +195,12 @@ func (b *Burner) hit(tgt *Gtarget, tm time.Time) *Result {
 		return &res
 	}
 
-	// TODO: add gRPC CallOptions
-	err = c.Invoke(b.ctx, tgt.MethodName, tgt.Request, tgt.Response)
+	req, err := tgt.getRequest(b.loop)
+	if err != nil {
+		b.Stop()
+		return &res
+	}
+
+	err = c.Invoke(b.ctx, tgt.MethodName, req, tgt.Response)
 	return &res
 }
