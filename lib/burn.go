@@ -72,6 +72,11 @@ func (tgt *Gtarget) getRequest(loop bool) (proto.Message, error) {
 
 	tgt.indexMux.Lock()
 	defer tgt.indexMux.Unlock()
+
+	if !loop && tgt.index >= uint(l) {
+		return nil, ErrNoRequest
+	}
+
 	res := tgt.Requests[tgt.index%uint(l)]
 	tgt.index++
 	return res, nil
