@@ -3,6 +3,7 @@ package trunks
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -57,6 +58,7 @@ type Gtarget struct {
 	Requests   []proto.Message
 	Response   proto.Message
 
+	respType reflect.Type
 	indexMux sync.Mutex
 	index    uint
 }
@@ -80,6 +82,13 @@ func (tgt *Gtarget) getRequest(loop bool) (proto.Message, error) {
 	res := tgt.Requests[tgt.index%uint(l)]
 	tgt.index++
 	return res, nil
+}
+
+func (tgt *Gtarget) getNewResponse() proto.Message {
+	if tgt.respType == nil {
+		tgt.respType = reflect.TypeOf(tgt.Response)
+	}
+	return reflect.New(tgt.respType).Elem().Interface().(proto.Message)
 }
 
 // the burner
@@ -206,6 +215,7 @@ func (b *Burner) hit(tgt *Gtarget, tm time.Time) *Result {
 		return &res
 	}
 
-	err = c.Invoke(b.ctx, tgt.MethodName, req, tgt.Response)
+	resp := tgt.getNewResponse()
+	err = c.Invoke(b.ctx, tgt.MethodName, req, resp)
 	return &res
 }
