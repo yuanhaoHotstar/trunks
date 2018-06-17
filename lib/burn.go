@@ -3,14 +3,18 @@ package trunks
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"strings"
 	"sync"
 	"time"
 
-	proto "github.com/golang/protobuf/proto"
+	"github.com/golang/protobuf/proto"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/encoding"
 )
+
+func init() {
+	encoding.RegisterCodec(codecIgnoreResp{})
+}
 
 var (
 	ErrNoSubConn   = fmt.Errorf("No Sub Connections")
@@ -58,7 +62,6 @@ type Gtarget struct {
 	Requests   []proto.Message
 	Response   proto.Message
 
-	respType reflect.Type
 	indexMux sync.Mutex
 	index    uint
 }
@@ -79,16 +82,9 @@ func (tgt *Gtarget) getRequest(loop bool) (proto.Message, error) {
 		return nil, ErrNoRequest
 	}
 
-	res := tgt.Requests[tgt.index%uint(l)]
+	req := tgt.Requests[tgt.index%uint(l)]
 	tgt.index++
-	return res, nil
-}
-
-func (tgt *Gtarget) getNewResponse() proto.Message {
-	if tgt.respType == nil {
-		tgt.respType = reflect.TypeOf(tgt.Response)
-	}
-	return reflect.New(tgt.respType).Elem().Interface().(proto.Message)
+	return req, nil
 }
 
 // the burner
@@ -215,7 +211,7 @@ func (b *Burner) hit(tgt *Gtarget, tm time.Time) *Result {
 		return &res
 	}
 
-	resp := tgt.getNewResponse()
-	err = c.Invoke(b.ctx, tgt.MethodName, req, resp)
+	err = c.Invoke(b.ctx, tgt.MethodName, req, tgt.Response,
+		grpc.CallContentSubtype("proto-ignore-resp"))
 	return &res
 }
