@@ -4,8 +4,6 @@ Trunks, like every son, is derived from the father Vegeta with some enhanced ski
 1. dump HTTP reponses
 2. gRPC support
 
->My purpose is building a universal gRPC tool. But it's Golang and it's gRPC, we need the client stub and we need to do more than just one command. So far we can build custom program with Trunks as a lib. Sooner I would add some glue code to generate such client stub code and run it automatically.
-
 ![Trunks](http://images2.wikia.nocookie.net/__cb20100725123520/dragonballfanon/images/5/52/Future_Trunks_SSJ2.jpg)
 
 ## Usage manual
@@ -31,7 +29,7 @@ Given multiple hosts ('IP:port' of service instances), Trunks will use simple ro
 
 Example:
 
->In this example, I use google.golang.org/grpc/examples/route_guide as the target server.
+>This example is using "google.golang.org/grpc/examples/route_guide" as the target server.
 
 ```go
 package main
@@ -80,7 +78,6 @@ func main() {
     fmt.Printf("mean: %s\n", metrics.Latencies.Mean)
     fmt.Printf("max: %s\n", metrics.Latencies.Max)
 }
-
 ```
 
 For this code snippet, it would result in:
@@ -97,8 +94,10 @@ mean: 5.143272ms
 max: 6.19225ms
 ```
 
+_NOTE_
+* Currently Trunks is ignoring response unmarshalling. We don't need to provide response data structures to call gRPC endpoints.
 
-## TODO
+## Arion as gRPC
+Arion makes it easy to use Trunks. Please check https://github.com/straightdave/arion
 
-### glue code for one-click-poof
-to make this a portable one-statement command. Quick and easy.
+
