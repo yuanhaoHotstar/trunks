@@ -60,9 +60,10 @@ func (p *pool) Close() error {
 type Gtarget struct {
 	MethodName string
 	Requests   []proto.Message
-	Response   proto.Message
+	Response   proto.Message // Deprecating and not support response-dump; use Responses
+	Responses  []proto.Message
 
-	indexMux sync.Mutex
+	indexMux sync.Mutex // mutex for index of requests
 	index    uint
 }
 
@@ -82,18 +83,21 @@ func (tgt *Gtarget) getRequest(loop bool) (proto.Message, error) {
 		return nil, ErrNoRequest
 	}
 
-	req := tgt.Requests[tgt.index%uint(l)]
-	tgt.index++
+	_index := tgt.index % uint(l)
+	req := tgt.Requests[_index]
+	tgt.index++ // TODO: make sure it's OK even exceeding uint limitation
 	return req, nil
 }
 
 // the burner
 type Burner struct {
-	pool      *pool
 	numWorker uint64
 	loop      bool
-	ctx       context.Context
-	stopch    chan struct{}
+	dumpFile  string
+
+	pool   *pool
+	ctx    context.Context
+	stopch chan struct{}
 }
 
 func NewBurner(hosts []string, opts ...func(*Burner)) (*Burner, error) {
@@ -124,12 +128,26 @@ func NewBurner(hosts []string, opts ...func(*Burner)) (*Burner, error) {
 	return b, nil
 }
 
+// Deprecating; use WithNumWorker(uint64)
 func NumWorker(num uint64) func(*Burner) {
 	return func(b *Burner) { b.numWorker = num }
 }
 
+// Deprecating; use WithLooping(bool)
 func WithLoop() func(*Burner) {
 	return func(b *Burner) { b.loop = true }
+}
+
+func WithNumWorker(num uint64) func(*Burner) {
+	return func(b *Burner) { b.numWorker = num }
+}
+
+func WithLooping(yesno bool) func(*Burner) {
+	return func(b *Burner) { b.loop = yesno }
+}
+
+func WithDumpFile(fileName string) func(*Burner) {
+	return func(b *Burner) { b.dumpFile = fileName }
 }
 
 func (b *Burner) Close() error {
@@ -189,12 +207,16 @@ func (b *Burner) burn(tgt *Gtarget, workers *sync.WaitGroup, ticks <-chan time.T
 }
 
 func (b *Burner) hit(tgt *Gtarget, tm time.Time) *Result {
-	var res = Result{Timestamp: tm}
-	var err error
+	var (
+		res = Result{Timestamp: tm}
+		err error
+	)
 
 	defer func() {
 		res.Latency = time.Since(tm)
 		if err != nil {
+			// treating invoking failure as 400-BadRequest to count failures
+			res.Code = 400
 			res.Error = err.Error()
 		}
 	}()
@@ -213,5 +235,6 @@ func (b *Burner) hit(tgt *Gtarget, tm time.Time) *Result {
 
 	err = c.Invoke(b.ctx, tgt.MethodName, req, tgt.Response,
 		grpc.CallContentSubtype("proto-ignore-resp"))
+
 	return &res
 }

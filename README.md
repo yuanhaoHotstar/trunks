@@ -19,9 +19,9 @@ for original usage of Vegeta, please refer to [vegeta' readme](https://github.co
       Dump responses to file
 ```
 
-### gRPC perf test (now as a lib)
+### gRPC perf test (as lib)
 
-Using the _burn_ attack to burn the gRPC services. Capable with any gRPC service.
+Trunks uses the _burn_ to attack the gRPC services. Capable with any gRPC service.
 
 Given multiple hosts ('IP:port' of service instances), Trunks will use simple round-robin as client-side load balance mechanism.
 
@@ -31,7 +31,7 @@ Example:
 
 >This example is using "google.golang.org/grpc/examples/route_guide" as the target server.
 
-```go
+```golang
 package main
 
 import (
@@ -45,13 +45,15 @@ import (
 func main() {
     tgt := &trunks.Gtarget{
         MethodName: "/routeguide.RouteGuide/GetFeature",
-        Request:    &Point{Latitude: 10000, Longitude: 10000},
-        Response:   &Feature{},
+        Requests:   []proto.Message{&Point{Latitude: 10000, Longitude: 10000}}, // supporting multiple requests
+        Response:   &Feature{}, // providing one response data struct
     }
 
     burner, err := trunks.NewBurner(
-        []string{":10000"},   // a pool with round-robin picker
-        trunks.NumWorker(20), // if not specified, 10 is default
+        []string{"192.168.0.1:8087"},  // server address pool; simple round-robin
+        trunks.WithLooping(true),      // loop requests; false by default
+        trunks.WithNumWorker(20),      // worker goroutine pool size; 10 is default
+        trunks.WithDumpFile("a.dump"), // dump responses to file
     )
     if err != nil {
         fmt.Println(err)
@@ -61,6 +63,8 @@ func main() {
 
     var metrics trunks.Metrics
     startT := time.Now()
+
+    // burning the target service with QPS=5 and Duration=10s
     for res := range burner.Burn(tgt, uint64(5), 10*time.Second) {
         metrics.Add(res)
     }
@@ -72,11 +76,13 @@ func main() {
     fmt.Printf("latest: %v\n", metrics.Latest.Sub(startT).Nanoseconds())
     fmt.Printf("end: %v\n", metrics.End.Sub(startT).Nanoseconds())
     fmt.Printf("reqs: %d\n", metrics.Requests)
-    fmt.Printf("50th: %s\n", metrics.Latencies.P50)
-    fmt.Printf("95th: %s\n", metrics.Latencies.P95)
-    fmt.Printf("99th: %s\n", metrics.Latencies.P99)
+    fmt.Printf("success%: %f\n", metrics.Success)
+    fmt.Printf("p50: %s\n", metrics.Latencies.P50)
+    fmt.Printf("p95: %s\n", metrics.Latencies.P95)
+    fmt.Printf("p99: %s\n", metrics.Latencies.P99)
     fmt.Printf("mean: %s\n", metrics.Latencies.Mean)
     fmt.Printf("max: %s\n", metrics.Latencies.Max)
+    // ...
 }
 ```
 
@@ -87,15 +93,13 @@ earliest: 68670
 latest: 9800068577
 end: 9802058490
 reqs: 50
-50th: 5.974748ms
-95th: 6.084433ms
-99th: 6.10946ms
+success%: 99.88
+p50: 5.974748ms
+p95: 6.084433ms
+p99: 6.10946ms
 mean: 5.143272ms
 max: 6.19225ms
 ```
-
-_NOTE_
-* Currently Trunks is ignoring response unmarshalling. We don't need to provide response data structures to call gRPC endpoints.
 
 ## Arion as gRPC
 Arion makes it easy to use Trunks. Please check https://github.com/straightdave/arion
