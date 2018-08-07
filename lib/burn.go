@@ -195,6 +195,7 @@ func (b *Burner) hit(tgt *Gtarget, tm time.Time) *Result {
 	defer func() {
 		res.Latency = time.Since(tm)
 		if err != nil {
+			res.Code = 400 // let metrics know it's getting an error
 			res.Error = err.Error()
 		}
 	}()
