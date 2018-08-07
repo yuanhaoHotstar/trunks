@@ -2,7 +2,10 @@ package trunks
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -56,17 +59,17 @@ func (p *pool) Close() error {
 	return nil
 }
 
-// which gRPC method to call
+// Gtarget represents the task/target of stress testing
 type Gtarget struct {
 	MethodName string
 	Requests   []proto.Message
-	Response   proto.Message // Deprecating and not support response-dump; use Responses
-	Responses  []proto.Message
+	Response   proto.Message // origin cell to be cloned
 
 	indexMux sync.Mutex // mutex for index of requests
 	index    uint
 }
 
+// If multiple requests given, pick up one
 func (tgt *Gtarget) getRequest(loop bool) (proto.Message, error) {
 	l := len(tgt.Requests)
 	if l == 0 {
@@ -89,10 +92,11 @@ func (tgt *Gtarget) getRequest(loop bool) (proto.Message, error) {
 	return req, nil
 }
 
-// the burner
+// Burner is the subject to do the burning attack
 type Burner struct {
 	numWorker uint64
 	loop      bool
+	dump      bool
 	dumpFile  string
 
 	pool   *pool
@@ -147,7 +151,34 @@ func WithLooping(yesno bool) func(*Burner) {
 }
 
 func WithDumpFile(fileName string) func(*Burner) {
-	return func(b *Burner) { b.dumpFile = fileName }
+	return func(b *Burner) {
+		b.dumpFile = fileName
+		if fileName != "" {
+			b.dump = true
+		}
+	}
+}
+
+// WaitDumpDone waits until all response dumpings are done
+// and write everything into the dump file
+func (b *Burner) WaitDumpDone() error {
+	// dummy-proof
+	if !b.dump {
+		return nil
+	}
+
+	dumpers.Wait()
+
+	f, err := os.OpenFile(b.dumpFile, os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	if _, err := f.Write(memBuf.Bytes()); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (b *Burner) Close() error {
@@ -206,16 +237,25 @@ func (b *Burner) burn(tgt *Gtarget, workers *sync.WaitGroup, ticks <-chan time.T
 	}
 }
 
-func (b *Burner) hit(tgt *Gtarget, tm time.Time) *Result {
-	var (
-		res = Result{Timestamp: tm}
-		err error
-	)
+func (b *Burner) hit(tgt *Gtarget, tm time.Time) (res *Result) {
+	res = &Result{Timestamp: tm}
+	var err error
 
 	defer func() {
+		if r := recover(); r != nil {
+			err = r.(error)
+		}
+
 		res.Latency = time.Since(tm)
+
+		// count failure by cheating metrics
+		// as if this is an HTTP call
 		if err != nil {
-			res.Code = 400 // let metrics know it's getting an error
+			if res.Code < 100 {
+				// if res.code is not set
+				// consider it the fault from caller side
+				res.Code = 400
+			}
 			res.Error = err.Error()
 		} else {
 			res.Code = 200
@@ -225,17 +265,38 @@ func (b *Burner) hit(tgt *Gtarget, tm time.Time) *Result {
 	c, err := b.pool.Pick()
 	if err != nil {
 		b.Stop()
-		return &res
+		return
 	}
 
 	req, err := tgt.getRequest(b.loop)
 	if err != nil {
 		b.Stop()
-		return &res
+		return
 	}
 
-	err = c.Invoke(b.ctx, tgt.MethodName, req, tgt.Response,
-		grpc.CallContentSubtype("proto-ignore-resp"))
-
-	return &res
+	if !b.dump {
+		// simply discard the response, no operation on that object
+		// so it's able to share one single response object
+		err = c.Invoke(b.ctx, tgt.MethodName, req, tgt.Response, grpc.CallContentSubtype("proto-ignore-resp"))
+	} else {
+		// clone a response object to avoid race-condition
+		bb := reflect.New(reflect.TypeOf(tgt.Response).Elem()).Interface().(proto.Message)
+		err = c.Invoke(b.ctx, tgt.MethodName, req, bb)
+		if err == nil {
+			// start a new routine to serialize and dump
+			// to avoid blocking processing
+			dumpers.Add(1)
+			go func(resp proto.Message) {
+				defer dumpers.Done()
+				bytes, err := json.Marshal(resp)
+				if err == nil {
+					memBufMutex.Lock()
+					defer memBufMutex.Unlock()
+					bytes = append(bytes, []byte{'\r', '\n'}...)
+					memBuf.Write(bytes)
+				}
+			}(bb)
+		}
+	}
+	return
 }
