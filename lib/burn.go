@@ -215,9 +215,10 @@ func (b *Burner) hit(tgt *Gtarget, tm time.Time) *Result {
 	defer func() {
 		res.Latency = time.Since(tm)
 		if err != nil {
-			// treating invoking failure as 400-BadRequest to count failures
-			res.Code = 400
+			res.Code = 400 // let metrics know it's getting an error
 			res.Error = err.Error()
+		} else {
+			res.Code = 200
 		}
 	}()
 
