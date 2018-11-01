@@ -13,6 +13,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/encoding"
+	"google.golang.org/grpc/metadata"
 )
 
 func init() {
@@ -156,6 +157,12 @@ func WithDumpFile(fileName string) func(*Burner) {
 		if fileName != "" {
 			b.dump = true
 		}
+	}
+}
+
+func WithMetadata(md metadata.MD) func(*Burner) {
+	return func(b *Burner) {
+		b.ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 }
 
