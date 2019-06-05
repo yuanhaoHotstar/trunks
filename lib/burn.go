@@ -99,6 +99,8 @@ type Burner struct {
 	loop      bool
 	dump      bool
 	dumpFile  string
+	maxRecv   int
+	maxSend   int
 
 	pool   *pool
 	ctx    context.Context
@@ -110,17 +112,7 @@ func NewBurner(hosts []string, opts ...func(*Burner)) (*Burner, error) {
 		return nil, ErrNoGrpcHosts
 	}
 
-	p := &pool{}
-	for _, h := range hosts {
-		c, err := grpc.Dial(h, grpc.WithInsecure())
-		if err != nil {
-			return nil, fmt.Errorf("Dialing to [%s] failed: %v", h, err)
-		}
-		p.conns = append(p.conns, c)
-	}
-
 	b := &Burner{
-		pool:      p,
 		stopch:    make(chan struct{}),
 		numWorker: DefaultWorkers,
 		ctx:       context.Background(),
@@ -129,6 +121,35 @@ func NewBurner(hosts []string, opts ...func(*Burner)) (*Burner, error) {
 	for _, opt := range opts {
 		opt(b)
 	}
+
+	var co []grpc.CallOption
+	if b.maxRecv > 0 {
+		co = append(co, grpc.MaxCallRecvMsgSize(b.maxRecv))
+	}
+	if b.maxSend > 0 {
+		co = append(co, grpc.MaxCallSendMsgSize(b.maxSend))
+	}
+
+	p := &pool{}
+
+	// TODO: now it's one connection per each host;
+	// In the future we can set multiple connections per each host.
+	for _, h := range hosts {
+		var c *grpc.ClientConn
+		var err error
+
+		if len(co) > 0 {
+			c, err = grpc.Dial(h, grpc.WithDefaultCallOptions(co...), grpc.WithInsecure())
+		} else {
+			c, err = grpc.Dial(h, grpc.WithInsecure())
+		}
+
+		if err != nil {
+			return nil, fmt.Errorf("Dialing to [%s] failed: %v", h, err)
+		}
+		p.conns = append(p.conns, c)
+	}
+	b.pool = p
 
 	return b, nil
 }
@@ -163,6 +184,18 @@ func WithDumpFile(fileName string) func(*Burner) {
 func WithMetadata(md metadata.MD) func(*Burner) {
 	return func(b *Burner) {
 		b.ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+}
+
+func WithMaxRecvSize(s int) func(*Burner) {
+	return func(b *Burner) {
+		b.maxRecv = s
+	}
+}
+
+func WithMaxSendSize(s int) func(*Burner) {
+	return func(b *Burner) {
+		b.maxSend = s
 	}
 }
 
