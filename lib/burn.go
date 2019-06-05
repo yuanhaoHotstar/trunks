@@ -6,110 +6,37 @@ import (
 	"fmt"
 	"os"
 	"reflect"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/golang/protobuf/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/encoding"
-	"google.golang.org/grpc/metadata"
 )
 
 func init() {
 	encoding.RegisterCodec(codecIgnoreResp{})
 }
 
-var (
-	ErrNoSubConn   = fmt.Errorf("No Sub Connections")
-	ErrNoGrpcHosts = fmt.Errorf("No gRPC Hosts Provided")
-	ErrNoRequest   = fmt.Errorf("No request provided")
-)
-
-// simple client-side round-robin pool
-type pool struct {
-	conns []*grpc.ClientConn
-	mu    sync.Mutex
-	next  int
-}
-
-func (p *pool) Pick() (*grpc.ClientConn, error) {
-	size := len(p.conns)
-	if size <= 0 {
-		return nil, ErrNoSubConn
-	}
-
-	p.mu.Lock()
-	defer func() {
-		p.mu.Unlock()
-		p.next = (p.next + 1) % size
-	}()
-	return p.conns[p.next], nil
-}
-
-func (p *pool) Close() error {
-	var errs []string
-	for _, c := range p.conns {
-		if err := c.Close(); err != nil {
-			errs = append(errs, err.Error())
-		}
-	}
-	if len(errs) > 0 {
-		return fmt.Errorf("%s", strings.Join(errs, ", "))
-	}
-	return nil
-}
-
-// Gtarget represents the task/target of stress testing
-type Gtarget struct {
-	MethodName string
-	Requests   []proto.Message
-	Response   proto.Message // origin cell to be cloned
-
-	indexMux sync.Mutex // mutex for index of requests
-	index    uint
-}
-
-// If multiple requests given, pick up one
-func (tgt *Gtarget) getRequest(loop bool) (proto.Message, error) {
-	l := len(tgt.Requests)
-	if l == 0 {
-		return nil, ErrNoRequest
-	}
-	if l == 1 {
-		return tgt.Requests[0], nil
-	}
-
-	tgt.indexMux.Lock()
-	defer tgt.indexMux.Unlock()
-
-	if !loop && tgt.index >= uint(l) {
-		return nil, ErrNoRequest
-	}
-
-	_index := tgt.index % uint(l)
-	req := tgt.Requests[_index]
-	tgt.index++ // TODO: make sure it's OK even exceeding uint limitation
-	return req, nil
-}
-
-// Burner is the subject to do the burning attack
+// Burner is who runs the stress test against Gtargets.
 type Burner struct {
-	numWorker uint64
-	loop      bool
-	dump      bool
-	dumpFile  string
-	maxRecv   int
-	maxSend   int
+	numWorker      uint64
+	numConnPerHost uint64
+	loop           bool
+	dump           bool
+	dumpFile       string
+	maxRecv        int
+	maxSend        int
 
 	pool   *pool
 	ctx    context.Context
 	stopch chan struct{}
 }
 
-func NewBurner(hosts []string, opts ...func(*Burner)) (*Burner, error) {
-	if hosts == nil || len(hosts) <= 0 {
-		return nil, ErrNoGrpcHosts
+// NewBurner creates a new Burner with burner options.
+func NewBurner(hosts []string, opts ...BurnOpt) (*Burner, error) {
+	if len(hosts) < 1 {
+		return nil, fmt.Errorf("no host")
 	}
 
 	b := &Burner{
@@ -122,81 +49,41 @@ func NewBurner(hosts []string, opts ...func(*Burner)) (*Burner, error) {
 		opt(b)
 	}
 
-	var co []grpc.CallOption
+	var cos []grpc.CallOption
 	if b.maxRecv > 0 {
-		co = append(co, grpc.MaxCallRecvMsgSize(b.maxRecv))
+		cos = append(cos, grpc.MaxCallRecvMsgSize(b.maxRecv))
 	}
 	if b.maxSend > 0 {
-		co = append(co, grpc.MaxCallSendMsgSize(b.maxSend))
+		cos = append(cos, grpc.MaxCallSendMsgSize(b.maxSend))
 	}
 
 	p := &pool{}
 
-	// TODO: now it's one connection per each host;
-	// In the future we can set multiple connections per each host.
 	for _, h := range hosts {
-		var c *grpc.ClientConn
-		var err error
+		var x uint64
+		for ; x < b.numConnPerHost; x++ {
+			var c *grpc.ClientConn
+			var err error
 
-		if len(co) > 0 {
-			c, err = grpc.Dial(h, grpc.WithDefaultCallOptions(co...), grpc.WithInsecure())
-		} else {
-			c, err = grpc.Dial(h, grpc.WithInsecure())
-		}
+			if len(cos) > 0 {
+				c, err = grpc.Dial(h, grpc.WithDefaultCallOptions(cos...), grpc.WithInsecure())
+			} else {
+				c, err = grpc.Dial(h, grpc.WithInsecure())
+			}
 
-		if err != nil {
-			return nil, fmt.Errorf("Dialing to [%s] failed: %v", h, err)
+			if err != nil {
+				return nil, fmt.Errorf("failed to dial %s: %v", h, err)
+			}
+			p.conns = append(p.conns, c)
 		}
-		p.conns = append(p.conns, c)
 	}
+
+	if len(p.conns) < 1 {
+		return nil, fmt.Errorf("no connection in pool")
+	}
+
 	b.pool = p
-
 	return b, nil
-}
-
-// Deprecating; use WithNumWorker(uint64)
-func NumWorker(num uint64) func(*Burner) {
-	return func(b *Burner) { b.numWorker = num }
-}
-
-// Deprecating; use WithLooping(bool)
-func WithLoop() func(*Burner) {
-	return func(b *Burner) { b.loop = true }
-}
-
-func WithNumWorker(num uint64) func(*Burner) {
-	return func(b *Burner) { b.numWorker = num }
-}
-
-func WithLooping(yesno bool) func(*Burner) {
-	return func(b *Burner) { b.loop = yesno }
-}
-
-func WithDumpFile(fileName string) func(*Burner) {
-	return func(b *Burner) {
-		b.dumpFile = fileName
-		if fileName != "" {
-			b.dump = true
-		}
-	}
-}
-
-func WithMetadata(md metadata.MD) func(*Burner) {
-	return func(b *Burner) {
-		b.ctx = metadata.NewOutgoingContext(context.Background(), md)
-	}
-}
-
-func WithMaxRecvSize(s int) func(*Burner) {
-	return func(b *Burner) {
-		b.maxRecv = s
-	}
-}
-
-func WithMaxSendSize(s int) func(*Burner) {
-	return func(b *Burner) {
-		b.maxSend = s
-	}
 }
 
 // WaitDumpDone waits until all response dumpings are done
@@ -222,7 +109,7 @@ func (b *Burner) WaitDumpDone() error {
 }
 
 func (b *Burner) Close() error {
-	return b.pool.Close()
+	return b.pool.close()
 }
 
 func (b *Burner) Burn(tgt *Gtarget, rate uint64, du time.Duration) <-chan *Result {
@@ -272,8 +159,8 @@ func (b *Burner) Stop() {
 
 func (b *Burner) burn(tgt *Gtarget, workers *sync.WaitGroup, ticks <-chan time.Time, results chan<- *Result) {
 	defer workers.Done()
-	for tm := range ticks {
-		results <- b.hit(tgt, tm)
+	for tk := range ticks {
+		results <- b.hit(tgt, tk)
 	}
 }
 
@@ -302,13 +189,13 @@ func (b *Burner) hit(tgt *Gtarget, tm time.Time) (res *Result) {
 		}
 	}()
 
-	c, err := b.pool.Pick()
+	c, err := b.pool.pick()
 	if err != nil {
 		b.Stop()
 		return
 	}
 
-	req, err := tgt.getRequest(b.loop)
+	req, err := tgt.pick(b.loop)
 	if err != nil {
 		b.Stop()
 		return
