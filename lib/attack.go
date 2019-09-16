@@ -66,8 +66,8 @@ func NewAttacker(opts ...func(*Attacker)) *Attacker {
 	}
 	a.client = http.Client{
 		Transport: &http.Transport{
-			Proxy: http.ProxyFromEnvironment,
-			Dial:  a.dialer.Dial,
+			Proxy:                 http.ProxyFromEnvironment,
+			Dial:                  a.dialer.Dial,
 			ResponseHeaderTimeout: DefaultTimeout,
 			TLSClientConfig:       DefaultTLSConfig,
 			TLSHandshakeTimeout:   10 * time.Second,
@@ -82,6 +82,7 @@ func NewAttacker(opts ...func(*Attacker)) *Attacker {
 	return a
 }
 
+// RespondTo ...
 func RespondTo(rf string) func(*Attacker) {
 	return func(a *Attacker) { a.respf = rf }
 }
