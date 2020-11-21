@@ -6,6 +6,8 @@ Trunks, like every son, is derived from the father Vegeta with some enhanced ski
 
 ![Trunks](http://images2.wikia.nocookie.net/__cb20100725123520/dragonballfanon/images/5/52/Future_Trunks_SSJ2.jpg)
 
+> Current Tag v13.0.0
+
 ## Usage manual
 
 for original usage of Vegeta, please refer to [vegeta' readme](https://github.com/tsenart/vegeta/blob/master/README.md)
