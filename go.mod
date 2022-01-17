@@ -2,6 +2,10 @@ module github.com/straightdave/trunks
 
 go 1.15
 
+replace (
+	github.com/straightdave/trunks/lib => ./lib
+)
+
 require (
 	github.com/golang/protobuf v1.4.3
 	github.com/streadway/quantile v0.0.0-20150917103942-b0c588724d25

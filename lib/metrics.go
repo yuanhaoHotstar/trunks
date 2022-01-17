@@ -57,6 +57,8 @@ type (
 		P99 time.Duration `json:"99th"`
 		// Max is the maximum observed request latency.
 		Max time.Duration `json:"max"`
+		// Min is the minimum observed request latency.
+		Min time.Duration `json:"min"`
 	}
 
 	// ByteMetrics holds computed byte flow metrics.
@@ -91,6 +93,10 @@ func (m *Metrics) Add(r *Result) {
 
 	if end := r.End(); end.After(m.End) {
 		m.End = end
+	}
+
+	if r.Latency < m.Latencies.Min {
+		m.Latencies.Min = r.Latency
 	}
 
 	if r.Latency > m.Latencies.Max {

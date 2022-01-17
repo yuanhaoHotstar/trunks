@@ -112,35 +112,53 @@ func (b *Burner) Close() error {
 	return b.pool.close()
 }
 
-func (b *Burner) Burn(tgt *Gtarget, rate uint64, du time.Duration) <-chan *Result {
+func (b *Burner) Burn(tgt []*Gtarget, per uint64, rate uint64, du time.Duration) <-chan *Result {
 	var workers sync.WaitGroup
 	results := make(chan *Result)
 	ticks := make(chan time.Time)
+	ticksExp := make(chan time.Time)
 	for i := uint64(0); i < b.numWorker; i++ {
 		workers.Add(1)
-		go b.burn(tgt, &workers, ticks, results)
+		go b.burn(tgt[0], &workers, ticks, results)
 	}
+	workers.Add(1)
+	go b.burn(tgt[1], &workers, ticksExp, results)
 
 	go func() {
 		defer close(results)
 		defer workers.Wait()
 		defer close(ticks)
+		defer close(ticksExp)
 		interval := 1e9 / rate
 		hits := rate * uint64(du.Seconds())
 		began, done := time.Now(), uint64(0)
 		for {
 			now, next := time.Now(), began.Add(time.Duration(done*interval))
 			time.Sleep(next.Sub(now))
-			select {
-			case ticks <- max(next, now):
-				if done++; done == hits {
+			if done % 100 < per {
+				select {
+				case ticksExp <- max(next, now):
+					if done++; done == hits {
+						return
+					}
+				case <-b.stopch:
 					return
+				default:
+					workers.Add(1)
+					go b.burn(tgt[1], &workers, ticksExp, results)
 				}
-			case <-b.stopch:
-				return
-			default:
-				workers.Add(1)
-				go b.burn(tgt, &workers, ticks, results)
+			} else {
+				select {
+				case ticks <- max(next, now):
+					if done++; done == hits {
+						return
+					}
+				case <-b.stopch:
+					return
+				default:
+					workers.Add(1)
+					go b.burn(tgt[0], &workers, ticks, results)
+				}
 			}
 		}
 	}()
