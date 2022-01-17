@@ -13,7 +13,7 @@ import (
 	"os/signal"
 	"time"
 
-	trunks "github.com/straightdave/trunks/lib"
+	trunks "github.com/yuanhaoHotstar/trunks/lib"
 )
 
 func attackCmd() command {

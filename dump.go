@@ -6,7 +6,7 @@ import (
 	"io"
 	"strings"
 
-	trunks "github.com/straightdave/trunks/lib"
+	trunks "github.com/yuanhaoHotstar/trunks/lib"
 )
 
 func dumpCmd() command {

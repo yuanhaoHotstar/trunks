@@ -1,10 +1,6 @@
-module github.com/straightdave/trunks
+module github.com/yuanhaoHotstar/trunks
 
 go 1.15
-
-replace (
-	github.com/straightdave/trunks/lib => ./lib
-)
 
 require (
 	github.com/golang/protobuf v1.4.3
